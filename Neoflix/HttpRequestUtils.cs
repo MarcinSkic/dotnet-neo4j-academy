@@ -39,10 +39,10 @@ namespace Neoflix
                 };
 
             if (queryCollection.TryGetValue("limit", out var qsLimit))
-                int.TryParse(qsLimit, out limit);
+                _ = int.TryParse(qsLimit, out limit);
 
             if (queryCollection.TryGetValue("skip", out var qsSkip))
-                int.TryParse(qsSkip, out skip);
+                _ = int.TryParse(qsSkip, out skip);
 
             return (query, sort, order, limit, skip);
         }
