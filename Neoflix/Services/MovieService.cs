@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Neo4j.Driver;
@@ -40,12 +41,43 @@ namespace Neoflix.Services
         public async Task<Dictionary<string, object>[]> AllAsync(string sort = "title", 
             Ordering order = Ordering.Asc, int limit = 6, int skip = 0, string userId = null)
         {
-            // TODO: Open an Session
-            // TODO: Execute a query in a new Read Transaction
-            // TODO: Get a list of Movies from the Result
-            // TODO: Close the session
+            var session = _driver.AsyncSession();
 
-            return await Task.FromResult(Fixtures.Popular.Skip(skip).Take(limit).ToArray());
+            var res = await session.ExecuteReadAsync(async tx =>
+            {
+                var ordering = order switch
+                {
+                    Ordering.Asc => "ASC",
+                    Ordering.Desc => "DESC",
+                    _ => "ASC"
+                };
+
+                Debug.WriteLine(ordering);
+                Debug.WriteLine(sort);
+
+                var cursor = await tx.RunAsync($@"
+                    MATCH (m:Movie)
+                    WHERE m.{sort} IS NOT NULL
+                    RETURN m {{
+                        .*
+                    }} AS movie
+                    ORDER BY m.{sort} {ordering}
+                    SKIP $skip
+                    LIMIT $limit
+                ", new {sort,skip,limit});
+
+                var rows = await cursor.ToListAsync();
+
+                var converted = rows.Select(row => row["movie"].As<Dictionary<string, object>>());
+
+                return converted;
+            });
+
+            Debug.Write(res);
+
+            await session.DisposeAsync();
+
+            return res.ToArray();
         }
         // end::all[]
 
