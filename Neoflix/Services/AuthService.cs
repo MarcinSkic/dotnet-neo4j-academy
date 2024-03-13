@@ -1,4 +1,6 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Neo4j.Driver;
@@ -40,28 +42,44 @@ namespace Neoflix.Services
         {
             var rounds = Config.UnpackPasswordConfig();
             var encrypted = BCryptNet.HashPassword(plainPassword, rounds);
+
+            try
+            {
+                using var session = _driver.AsyncSession();
+
+                var createdUser = await session.ExecuteWriteAsync(async (tx) =>
+                {
+                    var cursor = await tx.RunAsync(@" 
+                    CREATE (user:User {
+                        userId: randomUUID(),
+                        email: $email,
+                        password: $encrypted,
+                        name: $name
+                    } ) 
+                    RETURN user", new {email,encrypted,name});
+
+                    var result = await cursor.SingleAsync();
+
+                    return result["user"].As<INode>().Properties.As<Dictionary<string, object>>();
+                });
+
+                var safeProperties = SafeProperties(createdUser);
+                safeProperties.Add("token", JwtHelper.CreateToken(GetUserClaims(safeProperties)));
+
+                return safeProperties;
+            } 
+            catch(Exception e)
+            {
+                throw new ValidationException($"An account already exists with the email address", email);
+            }
+
             // tag::constraintError[]
             // TODO: Handle Unique constraints in the database
-            if (email != "graphacademy@neo4j.com")
-                throw new ValidationException($"An account already exists with the email address", email);
+
+                //throw new ValidationException($"An account already exists with the email address", email);
             // end::constraintError[]
             
-            // TODO: Save user
-            var exampleUser = new Dictionary<string, object>
-            {
-                ["identity"] = 1,
-                ["properties"] = new Dictionary<string, object>
-                {
-                    ["userId"] = 1,
-                    ["email"] = "graphacademy@neo4j.com",
-                    ["name"] = "Graph Academy"
-                }
-            };
 
-            var safeProperties = SafeProperties(exampleUser["properties"] as Dictionary<string, object>);
-            safeProperties.Add("token", JwtHelper.CreateToken(GetUserClaims(safeProperties)));
-
-            return safeProperties;
         }
         // end::register[]
 

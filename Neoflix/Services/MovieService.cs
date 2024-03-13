@@ -52,9 +52,6 @@ namespace Neoflix.Services
                     _ => "ASC"
                 };
 
-                Debug.WriteLine(ordering);
-                Debug.WriteLine(sort);
-
                 var cursor = await tx.RunAsync($@"
                     MATCH (m:Movie)
                     WHERE m.{sort} IS NOT NULL
@@ -72,8 +69,6 @@ namespace Neoflix.Services
 
                 return converted;
             });
-
-            Debug.Write(res);
 
             await session.DisposeAsync();
 
